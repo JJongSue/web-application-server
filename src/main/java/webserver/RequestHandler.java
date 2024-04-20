@@ -3,9 +3,14 @@ package webserver;
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
+import java.util.HashMap;
+import java.util.Map;
 
+import db.DataBase;
+import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.HttpRequestUtils;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -13,8 +18,11 @@ public class RequestHandler extends Thread {
 
     private Socket connection;
 
-    public RequestHandler(Socket connectionSocket) {
-        this.connection = connectionSocket;
+    private DataBase dataBase;
+
+    public RequestHandler(Socket connection, DataBase dataBase) {
+        this.connection = connection;
+        this.dataBase = dataBase;
     }
 
     public void run() {
@@ -32,19 +40,42 @@ public class RequestHandler extends Thread {
 
             if(requests.length >= 2) {
                 if(!requests[1].equals("/")) {
-                    String filePath = rootPath + requests[1];
-                    File file = new File(filePath);
+                    String[] urlParts = requests[1].split("\\?");
 
-                    if (!file.exists()) {
-                        log.error("File not found: " + filePath);
-                        String errorMessage = "File not found";
-                        byte[] errorBody = errorMessage.getBytes();
-                        dos = new DataOutputStream(out);
-                        response404Header(dos, errorBody.length);
-                        responseBody(dos, errorBody);
-                        return;
+                    String filePath = rootPath + urlParts[0];
+
+                    Map<String, String> params = new HashMap();
+                    if(urlParts.length >= 2) {
+                        params = HttpRequestUtils.parseQueryString(urlParts[1]);
                     }
-                    body = Files.readAllBytes(new File(filePath).toPath());
+
+                    if(urlParts[0].equals("/user/create")) {
+                        String userId = params.get("userId");
+                        String password = params.get("password");
+                        String name = params.get("name");
+                        String email = params.get("email");
+                        User user = new User(userId, password, name, email);
+
+                        dataBase.addUser(user);
+                        body = user.toString().getBytes();
+                    } else if(urlParts[0].equals("/user/findAll")) {
+                        body = dataBase.findAll().toString().getBytes();
+                    }
+
+                    else {
+                        File file = new File(filePath);
+
+                        if (!file.exists()) {
+                            log.error("File not found: " + filePath);
+                            String errorMessage = "File not found";
+                            byte[] errorBody = errorMessage.getBytes();
+                            dos = new DataOutputStream(out);
+                            response404Header(dos, errorBody.length);
+                            responseBody(dos, errorBody);
+                            return;
+                        }
+                        body = Files.readAllBytes(new File(filePath).toPath());
+                    }
                 }
             }
 
