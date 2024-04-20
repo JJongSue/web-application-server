@@ -29,8 +29,10 @@ public class RequestHandler extends Thread {
             String[] requests = request.split(" ");
             byte[] body = "Hello World".getBytes();
             if(requests.length >= 2) {
-                String filePath = rootPath + requests[1];
-                body = Files.readAllBytes(new File(filePath).toPath());
+                if(!requests[1].equals("/")) {
+                    String filePath = rootPath + requests[1];
+                    body = Files.readAllBytes(new File(filePath).toPath());
+                }
             }
             DataOutputStream dos = new DataOutputStream(out);
             response200Header(dos, body.length);
